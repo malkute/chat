@@ -1,0 +1,9 @@
+# Don’t track dependencies
+node_modules/
+
+# Don’t track build artifacts
+dist/
+
+# # Editor settings (optional)
+# .vscode/
+.vscode/

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Private Chat</title>
+  <style>
+    body, html { margin:0; padding:0; width:100%; height:100%; }
+    body { font-family:sans-serif; background:#2c2f33; color:#dcddde; }
+    #container { display:flex; height:100%; }
+    #sidebar { width:200px; background:#23272a; padding:10px; box-sizing:border-box; }
+    #sidebar ul { list-style:none; padding:0; }
+    #sidebar li { margin:8px 0; cursor:pointer; }
+    #main { position:relative; flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    #status { padding:10px; background:#2f3136; }
+    #messages { flex:1; padding:10px; overflow-y:auto; }
+    #inputBar { display:none; padding:10px; background:#2f3136; border-top:1px solid #7289da; box-sizing:border-box; }
+    #inputBar input { width:calc(100% - 80px); padding:8px; border:none; border-radius:4px; background:#40444b; color:#fff; }
+    #inputBar button { width:60px; margin-left:8px; padding:8px; border:none; border-radius:4px; background:#7289da; color:#fff; cursor:pointer; }
+    .message { margin-bottom:8px; }
+    .nick { font-weight:bold; color:#7289da; }
+    #auth { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(44,47,51,0.95); display:flex; align-items:center; justify-content:center; z-index:1000; box-sizing:border-box; }
+    #auth > div { width:300px; background:#2f3136; padding:20px; border-radius:6px; box-sizing:border-box; }
+    #auth h2 { margin-top:0; color:#fff; }
+    #auth input { width:100%; margin-bottom:12px; padding:8px; border:1px solid #99a; border-radius:4px; background:#40444b; color:#fff; box-sizing:border-box; }
+    #auth button { padding:8px 12px; margin-right:8px; border:none; border-radius:4px; background:#7289da; color:#fff; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="sidebar">
+      <h3>CHANNELS</h3>
+      <ul id="channels"><li data-id="general"># general</li></ul>
+    </div>
+    <div id="main">
+      <div id="status">Not connected</div>
+      <div id="messages"></div>
+      <div id="inputBar">
+        <input id="msgInput" placeholder="Message #general…" />
+        <button id="sendBtn">Send</button>
+      </div>
+      <div id="auth">
+        <div id="registerForm">
+          <h2>Register</h2>
+          <input id="regEmail" type="email" placeholder="Email" />
+          <input id="regPass" type="password" placeholder="Password" />
+          <input id="regNick" placeholder="Nickname" />
+          <button id="regBtn">Register</button>
+          <button id="toLogin">Already have an account?</button>
+        </div>
+        <div id="loginForm" style="display:none;">
+          <h2>Login</h2>
+          <input id="loginEmail" type="email" placeholder="Email" />
+          <input id="loginPass" type="password" placeholder="Password" />
+          <button id="loginBtn">Login</button>
+          <button id="toReg">Create an account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const API   = window.env.API_URL;
+      let token    = localStorage.getItem('chat_token') || '';
+      const $      = id => document.getElementById(id);
+
+      $('toLogin').onclick = () => {
+        $('registerForm').style.display = 'none';
+        $('loginForm').style.display    = 'block';
+      };
+      $('toReg').onclick = () => {
+        $('loginForm').style.display    = 'none';
+        $('registerForm').style.display = 'block';
+      };
+
+      $('regBtn').onclick = async () => {
+        const email = $('regEmail').value;
+        const pass  = $('regPass').value;
+        const nick  = $('regNick').value;
+        const res   = await fetch(`${API}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass, nickname: nick })
+        });
+        const j = await res.json();
+        if (j.success) {
+          alert('Registered! Please log in.');
+          $('toLogin').click();
+        } else {
+          alert(j.error || 'Register failed');
+        }
+      };
+
+      $('loginBtn').onclick = async () => {
+        const email = $('loginEmail').value;
+        const pass  = $('loginPass').value;
+        const res   = await fetch(`${API}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        const j = await res.json();
+        if (j.token) {
+          token = j.token;
+          localStorage.setItem('chat_token', token);
+          $('auth').style.display = 'none';
+          startChat();
+        } else {
+          alert(j.error || 'Login failed');
+        }
+      };
+
+      if (token) {
+        $('auth').style.display = 'none';
+        startChat();
+      }
+
+      function startChat() {
+        $('status').innerText       = 'Connecting…';
+        $('inputBar').style.display = 'flex';
+
+        const socket = io(API, {
+          path: '/socket.io',
+          transports: ['websocket'],
+          secure: API.startsWith('https'),
+          auth: { token }
+        });
+
+        socket.on('connect', () => {
+          $('status').innerText = 'Connected';
+          socket.emit('joinRoom', 'general');
+        });
+
+        socket.on('history', rows => {
+          rows.forEach(m => addMsg(m));
+        });
+
+        socket.on('message', m => {
+          addMsg(m);
+        });
+
+        socket.on('error', e => {
+          alert('Socket error: ' + e);
+        });
+
+        $('sendBtn').onclick = () => {
+          const txt = $('msgInput').value.trim();
+          if (!txt) return;
+          socket.emit('message', { roomId: 'general', text: txt });
+          $('msgInput').value = '';
+        };
+      }
+
+      function addMsg(m) {
+        const d = document.createElement('div');
+        d.className = 'message';
+        d.innerHTML = `<span class="nick">${m.user}</span>: ${m.text}`;
+        $('messages').append(d);
+        $('messages').scrollTop = $('messages').scrollHeight;
+      }
+    });
+  </script>
+</body>
+</html>
