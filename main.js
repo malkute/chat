@@ -1,7 +1,10 @@
 // main.js
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+
+// expose version to renderer
+ipcMain.handle('get-app-version', () => app.getVersion());
 
 let mainWindow;
 function createWindow() {
@@ -13,16 +16,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
-
-  // Point to public/index.html inside the ASAR
   mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
-
-  // mainWindow.webContents.openDevTools(); // uncomment to debug
 }
 
 app.whenReady().then(() => {
   createWindow();
-  // auto-check & notify on updates
   autoUpdater.checkForUpdatesAndNotify();
 });
 
@@ -33,7 +31,7 @@ app.on('activate', () => {
   if (!mainWindow) createWindow();
 });
 
-// ─── electron-updater events ──────────────────────────────────────────
+// ── in-app update handlers ───────────────────────────────────────
 
 autoUpdater.on('update-available', info => {
   dialog.showMessageBox({

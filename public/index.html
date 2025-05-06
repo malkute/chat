@@ -1,3 +1,4 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -13,16 +14,25 @@
     #main { position:relative; flex:1; display:flex; flex-direction:column; overflow:hidden; }
     #status { padding:10px; background:#2f3136; }
     #messages { flex:1; padding:10px; overflow-y:auto; }
-    #inputBar { display:none; padding:10px; background:#2f3136; border-top:1px solid #7289da; box-sizing:border-box; }
+    #inputBar { display:none; padding:10px; background:#2f3136; border-top:1px solid #7289da; }
     #inputBar input { width:calc(100% - 80px); padding:8px; border:none; border-radius:4px; background:#40444b; color:#fff; }
     #inputBar button { width:60px; margin-left:8px; padding:8px; border:none; border-radius:4px; background:#7289da; color:#fff; cursor:pointer; }
     .message { margin-bottom:8px; }
     .nick { font-weight:bold; color:#7289da; }
-    #auth { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(44,47,51,0.95); display:flex; align-items:center; justify-content:center; z-index:1000; box-sizing:border-box; }
-    #auth > div { width:300px; background:#2f3136; padding:20px; border-radius:6px; box-sizing:border-box; }
+    #auth { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(44,47,51,0.95);
+            display:flex; align-items:center; justify-content:center; z-index:1000; }
+    #auth > div { width:300px; background:#2f3136; padding:20px; border-radius:6px; }
     #auth h2 { margin-top:0; color:#fff; }
-    #auth input { width:100%; margin-bottom:12px; padding:8px; border:1px solid #99a; border-radius:4px; background:#40444b; color:#fff; box-sizing:border-box; }
-    #auth button { padding:8px 12px; margin-right:8px; border:none; border-radius:4px; background:#7289da; color:#fff; cursor:pointer; }
+    #auth input { width:100%; margin-bottom:12px; padding:8px; border:1px solid #99a; border-radius:4px;
+                  background:#40444b; color:#fff; }
+    #auth button { padding:8px 12px; margin-right:8px; border:none; border-radius:4px;
+                   background:#7289da; color:#fff; cursor:pointer; }
+    #versionBadge {
+      position: fixed; bottom: 8px; left: 8px;
+      font-size: 12px; color: #99aab5;
+      background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius:4px;
+      user-select: none; z-index:1000;
+    }
   </style>
 </head>
 <body>
@@ -61,6 +71,11 @@
   <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => {
+      // populate version badge
+      window.env.getVersion().then(v => {
+        document.getElementById('versionBadge').innerText = 'v' + v;
+      });
+
       const API   = window.env.API_URL;
       let token    = localStorage.getItem('chat_token') || '';
       const $      = id => document.getElementById(id);
@@ -132,17 +147,9 @@
           socket.emit('joinRoom', 'general');
         });
 
-        socket.on('history', rows => {
-          rows.forEach(m => addMsg(m));
-        });
-
-        socket.on('message', m => {
-          addMsg(m);
-        });
-
-        socket.on('error', e => {
-          alert('Socket error: ' + e);
-        });
+        socket.on('history', rows => rows.forEach(addMsg));
+        socket.on('message', addMsg);
+        socket.on('error', e => alert('Socket error: ' + e));
 
         $('sendBtn').onclick = () => {
           const txt = $('msgInput').value.trim();
@@ -161,5 +168,7 @@
       }
     });
   </script>
+
+  <div id="versionBadge">v—</div>
 </body>
 </html>
